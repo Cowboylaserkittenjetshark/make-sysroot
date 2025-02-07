@@ -75,6 +75,15 @@ fn create_explicit_symlinks(dst: &PathBuf, links: Vec<Link>) -> Result<()> {
 fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
     let mut copier = CopyBuilder::new(&src, &dst).overwrite_if_newer(true);
     for path in config.include.iter() {
+        if !path.is_absolute() {
+            println!(
+                "{} {} {}",
+                Red.bold().paint("The provided include path"),
+                path.to_string_lossy(),
+                Red.bold().paint("is not absolute, aborting")
+            );
+            exit(1);
+        }
         copier = copier.with_include_filter(
             src.join(path)
                 .to_str()
@@ -82,6 +91,15 @@ fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
         );
     }
     for path in config.exclude.iter() {
+        if !path.is_absolute() {
+            println!(
+                "{} {} {}",
+                Red.bold().paint("The provided exclude path"),
+                path.to_string_lossy(),
+                Red.bold().paint("is not absolute, aborting")
+            );
+            exit(1);
+        }
         copier = copier.with_exclude_filter(
             src.join(path)
                 .to_str()
