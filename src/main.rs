@@ -8,7 +8,7 @@ use dircpy::CopyBuilder;
 use inquire::Confirm;
 use serde::Deserialize;
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     fs::{read_link, read_to_string, remove_file},
     os::unix::fs::symlink,
     path::{absolute, PathBuf},
@@ -35,12 +35,32 @@ fn main() -> Result<()> {
     let config_str = read_to_string(args.config).context("Config file not found")?;
     let config: Config = toml::from_str(&config_str)?;
 
-    if !confirm(src.display(), dst.display(), config)? {
+    if !confirm(src.display(), dst.display(), &config)? {
         eprintln!("Aborting");
         exit(0);
     }
-    // CopyBuilder::new(&src, &dst).overwrite_if_newer(true).with_exclude_filter(f);
+
+    copy(&src, &dst, &config)?;
     make_relative(dst)?;
+    Ok(())
+}
+
+fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
+    let mut copier = CopyBuilder::new(&src, &dst).overwrite_if_newer(true);
+    for path in config.include.iter() {
+        copier = copier.with_include_filter(
+            path.to_str()
+                .ok_or_else(|| anyhow!("Failed to parse an include path"))?,
+        );
+    }
+    for path in config.exclude.iter() {
+        copier = copier.with_exclude_filter(
+            path.to_str()
+                .ok_or_else(|| anyhow!("Failed to parse an exclude path"))?,
+        );
+    }
+    dbg!(&copier);
+    copier.run()?;
     Ok(())
 }
 
@@ -71,7 +91,7 @@ fn make_relative(sysroot_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn confirm<T: Display>(src: T, dst: T, config: Config) -> Result<bool> {
+fn confirm<T: Display>(src: T, dst: T, config: &Config) -> Result<bool> {
     let bold = Style::new().bold();
     println!(
         "{}{}: ",
