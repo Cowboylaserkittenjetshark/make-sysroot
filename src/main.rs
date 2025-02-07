@@ -184,13 +184,15 @@ fn describe<T: Display>(src: T, dst: T, config: &Config) {
             println!("  {}", path.to_string_lossy());
         }
     }
-    println!("{}", bold.paint("The following symlinks will be created: "));
-    for link in config.link.iter() {
-        println!(
-            "{} -> {}",
-            Cyan.paint(link.link.to_string_lossy()),
-            link.target.to_string_lossy()
-        )
+    if config.link.len() > 0 {
+        println!("{}", bold.paint("The following symlinks will be created: "));
+        for link in config.link.iter() {
+            println!(
+                "{} -> {}",
+                Cyan.paint(link.link.to_string_lossy()),
+                link.target.to_string_lossy()
+            )
+        }
     }
 }
 
