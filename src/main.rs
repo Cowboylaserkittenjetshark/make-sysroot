@@ -9,7 +9,7 @@ use inquire::Confirm;
 use serde::Deserialize;
 use std::{
     fmt::{Debug, Display},
-    fs::{create_dir_all, read_link, read_to_string, remove_file},
+    fs::{create_dir_all, read_link, read_to_string, remove_dir_all, remove_file},
     os::unix::fs::symlink,
     path::{absolute, PathBuf},
     process::exit,
@@ -76,17 +76,26 @@ fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
     let mut copier = CopyBuilder::new(&src, &dst).overwrite_if_newer(true);
     for path in config.include.iter() {
         copier = copier.with_include_filter(
-            path.to_str()
+            src.join(path)
+                .to_str()
                 .ok_or_else(|| anyhow!("Failed to parse an include path"))?,
         );
     }
     for path in config.exclude.iter() {
         copier = copier.with_exclude_filter(
-            path.to_str()
+            src.join(path)
+                .to_str()
                 .ok_or_else(|| anyhow!("Failed to parse an exclude path"))?,
         );
     }
     copier.run()?;
+    // Clean up some empty parent directories the copy proccess leaves behind from exlcuded files
+    for path in config.exclude.iter() {
+        let abs_path = dst.join(path.strip_prefix("/")?);
+        if abs_path.exists() {
+            remove_dir_all(&abs_path).context(abs_path.to_string_lossy().into_owned())?;
+        }
+    }
     Ok(())
 }
 
