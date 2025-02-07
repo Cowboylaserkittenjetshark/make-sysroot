@@ -1,0 +1,33 @@
+include = [
+  "/usr/",
+  "/lib/",
+  "/opt/",
+  "/etc/alternatives/",
+]
+
+exclude = [
+  "/usr/bin/",
+  "/usr/sbin/",
+  "/usr/src/",
+  "/usr/share/",
+  "/usr/libexec/",
+  "/usr/games/",
+  "/usr/lib/aarch64-linux-gnu/dri/",
+  "/usr/lib/firmware/",
+  "/usr/local/cuda-10.2/doc/",
+  "/usr/local/cuda-10.2/samples/",
+  "/usr/lib/systemd/",
+  "/usr/lib/aarch64-linux-gnu/libthread_db.so",
+  "/usr/lib/aarch64-linux-gnu/libfl.so",
+  "/usr/lib/aarch64-linux-gnu/qt-default/",
+  "/usr/lib/libreoffice/",
+  "/usr/lib/thunderbird/",
+  "/usr/lib/aspell/",
+  "/lib/aarch64-linux-gnu/dri/",
+  "/lib/firmware/",
+  "/lib/systemd/",
+]
+
+[[link]]
+link = "/this/is/the/path/to/the/symlink"
+target = "/this/is/the/path/to/its/target"
