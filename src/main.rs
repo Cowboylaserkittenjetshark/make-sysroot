@@ -9,7 +9,7 @@ use inquire::Confirm;
 use serde::Deserialize;
 use std::{
     fmt::{Debug, Display},
-    fs::{read_link, read_to_string, remove_file},
+    fs::{create_dir_all, read_link, read_to_string, remove_file},
     os::unix::fs::symlink,
     path::{absolute, PathBuf},
     process::exit,
@@ -34,14 +34,41 @@ fn main() -> Result<()> {
 
     let config_str = read_to_string(args.config).context("Config file not found")?;
     let config: Config = toml::from_str(&config_str)?;
-
-    if !confirm(src.display(), dst.display(), &config)? {
+    describe(src.display(), dst.display(), &config);
+    if !query("Continue?")? {
         eprintln!("Aborting");
         exit(0);
     }
 
     copy(&src, &dst, &config)?;
-    make_relative(dst)?;
+    create_explicit_symlinks(&dst, config.link)?;
+    make_relative(&dst)?;
+    Ok(())
+}
+
+fn create_explicit_symlinks(dst: &PathBuf, links: Vec<Link>) -> Result<()> {
+    for link in links {
+        if link.link.is_absolute() {
+            let abs_link = dst.join(link.link.strip_prefix("/")?);
+            if abs_link.symlink_metadata().is_ok() {
+                println!(
+                    "{}",
+                    Red.bold().paint(format!(
+                        "File {} already exists but was specified for symlinking",
+                        &abs_link.to_string_lossy()
+                    ))
+                );
+                if query("Replace it?")? {
+                    remove_file(&abs_link)?;
+                } else {
+                    println!("{}", Red.bold().paint("Skipping..."));
+                    continue;
+                }
+            }
+            create_dir_all(&abs_link.parent().unwrap())?;
+            symlink(link.target, &abs_link)?;
+        }
+    }
     Ok(())
 }
 
@@ -59,12 +86,11 @@ fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
                 .ok_or_else(|| anyhow!("Failed to parse an exclude path"))?,
         );
     }
-    dbg!(&copier);
     copier.run()?;
     Ok(())
 }
 
-fn make_relative(sysroot_dir: PathBuf) -> Result<()> {
+fn make_relative(sysroot_dir: &PathBuf) -> Result<()> {
     // Recursively walk through all directories in the sysroot
     for entry in WalkDir::new(&sysroot_dir) {
         let entry = entry?;
@@ -91,7 +117,7 @@ fn make_relative(sysroot_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn confirm<T: Display>(src: T, dst: T, config: &Config) -> Result<bool> {
+fn describe<T: Display>(src: T, dst: T, config: &Config) {
     let bold = Style::new().bold();
     println!(
         "{}{}: ",
@@ -131,8 +157,10 @@ fn confirm<T: Display>(src: T, dst: T, config: &Config) -> Result<bool> {
             println!("  {}", path.to_string_lossy());
         }
     }
+}
 
-    Confirm::new("Continue?")
+fn query<T: Display>(prompt: T) -> Result<bool> {
+    Confirm::new(prompt.to_string().as_str())
         .with_default(false)
         .prompt()
         .context("Context")
@@ -176,4 +204,11 @@ struct Args {
 struct Config {
     include: Vec<PathBuf>,
     exclude: Vec<PathBuf>,
+    link: Vec<Link>,
+}
+
+#[derive(Deserialize, Debug)]
+struct Link {
+    link: PathBuf,
+    target: PathBuf,
 }
