@@ -58,14 +58,16 @@ fn main() -> Result<()> {
 }
 
 fn make_relative(sysroot_dir: PathBuf) -> Result<()> {
+    // Recursively walk through all directories in the sysroot
     for entry in WalkDir::new(&sysroot_dir) {
         let entry = entry?;
         if entry.path_is_symlink() {
+            // Get the target of the symlink
             let target = read_link(entry.path())?;
+            // Only operate on links who's target is absolute
             if target.is_absolute() {
                 let real_path = sysroot_dir.join(target.strip_prefix("/")?);
-                dbg!(entry.path());
-                dbg!(&real_path);
+                // Get target path relative to the entry path
                 let rel_path = pathdiff::diff_paths(
                     real_path.parent().unwrap(),
                     entry.path().parent().unwrap(),
@@ -73,7 +75,7 @@ fn make_relative(sysroot_dir: PathBuf) -> Result<()> {
                 .ok_or_else(|| {
                     anyhow!("Failed to resolve absolute symlink target to a relative one",)
                 })?
-                .join(real_path.file_name().unwrap());
+                .join(real_path.file_name().unwrap()); // Preserve the filename of the original target
                 remove_file(entry.path())?;
                 symlink(rel_path, entry.path())?;
             }
