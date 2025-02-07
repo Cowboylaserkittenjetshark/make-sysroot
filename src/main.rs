@@ -1,5 +1,5 @@
 use ansi_term::{
-    Color::{Green, Red},
+    Color::{Cyan, Green, Red},
     Style,
 };
 use anyhow::{anyhow, Context, Result};
@@ -156,6 +156,14 @@ fn describe<T: Display>(src: T, dst: T, config: &Config) {
         } else {
             println!("  {}", path.to_string_lossy());
         }
+    }
+    println!("{}", bold.paint("The following symlinks will be created: "));
+    for link in config.link.iter() {
+        println!(
+            "{} -> {}",
+            Cyan.paint(link.link.to_string_lossy()),
+            link.target.to_string_lossy()
+        )
     }
 }
 
