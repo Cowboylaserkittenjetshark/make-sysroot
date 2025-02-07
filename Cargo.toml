@@ -7,6 +7,9 @@ edition = "2021"
 ansi_term = "0.12.1"
 anyhow = "1.0.95"
 clap = { version = "4.5.28", features = ["derive"] }
+dircpy = "0.3.19"
 inquire = "0.7.5"
 pathdiff = "0.2.3"
+serde = { version = "1.0.217", features = ["derive"] }
+toml = "0.8.20"
 walkdir = "2.5.0"

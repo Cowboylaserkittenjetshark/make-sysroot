@@ -4,9 +4,12 @@ use ansi_term::{
 };
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use dircpy::CopyBuilder;
 use inquire::Confirm;
+use serde::Deserialize;
 use std::{
-    fs::{read_link, remove_file},
+    fmt::Display,
+    fs::{read_link, read_to_string, remove_file},
     os::unix::fs::symlink,
     path::{absolute, PathBuf},
     process::exit,
@@ -19,40 +22,24 @@ fn main() -> Result<()> {
     let dst = absolute(args.destination)
         .context("Failed to convert destination path to an absolute path")?;
 
-    if let Some(dst_str) = dst.canonicalize()?.as_path().to_str() {
-        if !args.force && dst_str == "/" {
-            eprintln!("This will recursively convert every absolute symlink in your root directory to a relative one");
-            eprintln!("You probably don't want to do this. If you are sure you want to do this, pass the -f option to override this check");
-            exit(1);
-        }
-    } else {
-        return Err(anyhow!("Cannot check destination directory"));
+    if src.is_file() {
+        return Err(anyhow!("source should be a directory but is a file"));
+    }
+    if dst.is_file() {
+        return Err(anyhow!("destination should be a directory but is a file"));
+    }
+    if !args.force {
+        check_dst(&dst)?;
     }
 
-    let bold = Style::new().bold();
-    println!(
-        "{}{}: ",
-        bold.paint("The following operations will occur and "),
-        Red.bold().paint("are possibly destructive")
-    );
-    println!("    - Any files in the destination directory may be overwritten");
-    println!("    - All symlinks in the destination directory will be converted to their relative equivalents");
-    println!();
-    println!(
-        "{}",
-        Style::new()
-            .bold()
-            .paint("Using the following directories: ")
-    );
-    println!("{} {}", Green.bold().paint("Source:"), src.display());
-    println!("{} {}", Green.bold().paint("Destination:"), dst.display());
-    println!();
-    let ans = Confirm::new("Continue?").with_default(false).prompt()?;
-    if !ans {
+    let config_str = read_to_string(args.config).context("Config file not found")?;
+    let config: Config = toml::from_str(&config_str)?;
+
+    if !confirm(src.display(), dst.display(), config)? {
         eprintln!("Aborting");
         exit(0);
     }
-
+    // CopyBuilder::new(&src, &dst).overwrite_if_newer(true).with_exclude_filter(f);
     make_relative(dst)?;
     Ok(())
 }
@@ -84,6 +71,66 @@ fn make_relative(sysroot_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
+fn confirm<T: Display>(src: T, dst: T, config: Config) -> Result<bool> {
+    let bold = Style::new().bold();
+    println!(
+        "{}{}: ",
+        bold.paint("The following operations will occur and "),
+        Red.bold().paint("are possibly destructive")
+    );
+    println!("    - Any files in the destination directory may be overwritten");
+    println!("    - All symlinks in the destination directory will be converted to their relative equivalents");
+    println!();
+    println!("{}", bold.paint("Using the following directories: "));
+    println!("{} {}", Green.bold().paint("Source:"), src);
+    println!("{} {}", Green.bold().paint("Destination:"), dst);
+    println!();
+    println!(
+        "{} {} {} {}{}",
+        bold.paint("The following paths will be copied to the destination directory,"),
+        Green.bold().paint("including"),
+        bold.paint("and"),
+        Red.bold().paint("excluding"),
+        bold.paint(":")
+    );
+    let mut includes = config.include.clone();
+    let mut excludes = config.exclude.clone();
+    includes.append(&mut excludes);
+    let mut combined_paths = includes;
+    combined_paths.sort_unstable();
+    for path in combined_paths {
+        if config.include.contains(&path) {
+            println!(
+                "{} {}",
+                Green.paint("+"),
+                Green.paint(path.to_string_lossy())
+            );
+        } else if config.exclude.contains(&path) {
+            println!("{} {}", Red.paint("-"), Red.paint(path.to_string_lossy()));
+        } else {
+            println!("  {}", path.to_string_lossy());
+        }
+    }
+
+    Confirm::new("Continue?")
+        .with_default(false)
+        .prompt()
+        .context("Context")
+}
+
+fn check_dst(dst: &PathBuf) -> Result<()> {
+    if let Some(dst_str) = dst.canonicalize()?.as_path().to_str() {
+        if dst_str == "/" {
+            eprintln!("This will recursively convert every absolute symlink in your root directory to a relative one");
+            eprintln!("You probably don't want to do this. If you are sure you want to do this, pass the -f option to override this check");
+            exit(1);
+        }
+    } else {
+        return Err(anyhow!("Cannot check destination directory"));
+    }
+    Ok(())
+}
+
 /// A tool for building sysroots for cross compilation
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -96,7 +143,17 @@ struct Args {
     #[arg(short, long)]
     destination: PathBuf,
 
+    /// Path to the configuration file
+    #[arg(short, long, default_value = "make-sysroot.toml")]
+    config: PathBuf,
+
     /// Force re-symlinking
     #[arg(short, long)]
     force: bool,
+}
+
+#[derive(Deserialize)]
+struct Config {
+    include: Vec<PathBuf>,
+    exclude: Vec<PathBuf>,
 }
