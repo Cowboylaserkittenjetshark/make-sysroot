@@ -74,7 +74,7 @@ fn create_explicit_symlinks(dst: &PathBuf, links: Vec<Link>) -> Result<()> {
 
 fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
     let mut copier = CopyBuilder::new(&src, &dst).overwrite_if_newer(true);
-    for path in config.include.iter() {
+    for path in config.include_paths.iter() {
         copier = copier.with_include_path(
             src.join(path.strip_prefix("/").with_context(|| {
                 Red.bold().paint(format!(
@@ -86,7 +86,8 @@ fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
             .ok_or_else(|| anyhow!("Failed to parse an include path"))?,
         );
     }
-    for path in config.exclude.iter() {
+
+    for path in config.exclude_paths.iter() {
         copier = copier.with_exclude_path(
             src.join(path.strip_prefix("/").with_context(|| {
                 Red.bold().paint(format!(
@@ -98,9 +99,19 @@ fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
             .ok_or_else(|| anyhow!("Failed to parse an exclude path"))?,
         );
     }
+
+    for filter in config.include_filters.iter() {
+        copier = copier.with_include_filter(filter);
+    }
+
+    for filter in config.exclude_filters.iter() {
+        copier = copier.with_exclude_filter(filter);
+    }
+
     copier.run()?;
+
     // Clean up some empty parent directories the copy proccess leaves behind from exlcuded files
-    for path in config.exclude.iter() {
+    for path in config.exclude_paths.iter() {
         let abs_path = dst.join(path.strip_prefix("/")?);
         if abs_path.exists() {
             remove_dir_all(&abs_path).context(abs_path.to_string_lossy().into_owned())?;
@@ -150,30 +161,32 @@ fn describe<T: Display>(src: T, dst: T, config: &Config) {
     println!("{} {}", Green.bold().paint("Source:"), src);
     println!("{} {}", Green.bold().paint("Destination:"), dst);
     println!();
-    println!(
-        "{} {} {} {}{}",
-        bold.paint("The following paths will be copied to the destination directory,"),
-        Green.bold().paint("including"),
-        bold.paint("and"),
-        Red.bold().paint("excluding"),
-        bold.paint(":")
-    );
-    let mut includes = config.include.clone();
-    let mut excludes = config.exclude.clone();
+    let mut includes = config.include_paths.clone();
+    let mut excludes = config.exclude_paths.clone();
     includes.append(&mut excludes);
     let mut combined_paths = includes;
     combined_paths.sort_unstable();
-    for path in combined_paths {
-        if config.include.contains(&path) {
-            println!(
-                "{} {}",
-                Green.paint("+"),
-                Green.paint(path.to_string_lossy())
-            );
-        } else if config.exclude.contains(&path) {
-            println!("{} {}", Red.paint("-"), Red.paint(path.to_string_lossy()));
-        } else {
-            println!("  {}", path.to_string_lossy());
+    if combined_paths.len() > 0 {
+        println!(
+            "{} {} {} {}{}",
+            bold.paint("The following paths will be copied to the destination directory,"),
+            Green.bold().paint("including"),
+            bold.paint("and"),
+            Red.bold().paint("excluding"),
+            bold.paint(":")
+        );
+        for path in combined_paths {
+            if config.include_paths.contains(&path) {
+                println!(
+                    "{} {}",
+                    Green.paint("+"),
+                    Green.paint(path.to_string_lossy())
+                );
+            } else if config.exclude_paths.contains(&path) {
+                println!("{} {}", Red.paint("-"), Red.paint(path.to_string_lossy()));
+            } else {
+                println!("  {}", path.to_string_lossy());
+            }
         }
     }
     if config.link.len() > 0 {
@@ -184,6 +197,30 @@ fn describe<T: Display>(src: T, dst: T, config: &Config) {
                 Cyan.paint(link.link.to_string_lossy()),
                 link.target.to_string_lossy()
             )
+        }
+    }
+    let mut includes = config.include_filters.clone();
+    let mut excludes = config.exclude_filters.clone();
+    includes.append(&mut excludes);
+    let mut combined_filters = includes;
+    combined_filters.sort_unstable();
+    if combined_filters.len() > 0 {
+        println!(
+            "{} {} {} {}{}",
+            bold.paint("The following filters will be applied,"),
+            Green.bold().paint("including"),
+            bold.paint("and"),
+            Red.bold().paint("excluding"),
+            bold.paint(":")
+        );
+        for filter in combined_filters {
+            if config.include_filters.contains(&filter) {
+                println!("{} {}", Green.paint("+"), Green.paint(filter));
+            } else if config.exclude_filters.contains(&filter) {
+                println!("{} {}", Red.paint("-"), Red.paint(filter));
+            } else {
+                println!("  {}", filter);
+            }
         }
     }
 }
@@ -231,8 +268,15 @@ struct Args {
 
 #[derive(Deserialize)]
 struct Config {
-    include: Vec<PathBuf>,
-    exclude: Vec<PathBuf>,
+    #[serde(default)]
+    include_paths: Vec<PathBuf>,
+    #[serde(default)]
+    exclude_paths: Vec<PathBuf>,
+    #[serde(default)]
+    include_filters: Vec<String>,
+    #[serde(default)]
+    exclude_filters: Vec<String>,
+    #[serde(default)]
     link: Vec<Link>,
 }
 
