@@ -4,6 +4,7 @@ use ansi_term::{
 };
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use core::panic;
 use inquire::Confirm;
 use make_sysroot::CopyBuilder;
 use serde::Deserialize;
@@ -75,35 +76,27 @@ fn create_explicit_symlinks(dst: &PathBuf, links: Vec<Link>) -> Result<()> {
 fn copy(src: &PathBuf, dst: &PathBuf, config: &Config) -> Result<()> {
     let mut copier = CopyBuilder::new(&src, &dst).overwrite_if_newer(true);
     for path in config.include.iter() {
-        if !path.is_absolute() {
-            println!(
-                "{} {} {}",
-                Red.bold().paint("The provided include path"),
-                path.to_string_lossy(),
-                Red.bold().paint("is not absolute, aborting")
-            );
-            exit(1);
-        }
-        copier = copier.with_include_filter(
-            src.join(path)
-                .to_str()
-                .ok_or_else(|| anyhow!("Failed to parse an include path"))?,
+        copier = copier.with_include_path(
+            src.join(path.strip_prefix("/").with_context(|| {
+                Red.bold().paint(format!(
+                    "The provided include path {} is not absolute",
+                    path.to_string_lossy()
+                ))
+            })?)
+            .to_str()
+            .ok_or_else(|| anyhow!("Failed to parse an include path"))?,
         );
     }
     for path in config.exclude.iter() {
-        if !path.is_absolute() {
-            println!(
-                "{} {} {}",
-                Red.bold().paint("The provided exclude path"),
-                path.to_string_lossy(),
-                Red.bold().paint("is not absolute, aborting")
-            );
-            exit(1);
-        }
-        copier = copier.with_exclude_filter(
-            src.join(path)
-                .to_str()
-                .ok_or_else(|| anyhow!("Failed to parse an exclude path"))?,
+        copier = copier.with_exclude_path(
+            src.join(path.strip_prefix("/").with_context(|| {
+                Red.bold().paint(format!(
+                    "The provided exclude path {} is not absolute",
+                    path.to_string_lossy()
+                ))
+            })?)
+            .to_str()
+            .ok_or_else(|| anyhow!("Failed to parse an exclude path"))?,
         );
     }
     copier.run()?;
