@@ -1,5 +1,4 @@
 //! Recursively copy a directory from a to b.
-
 use log::*;
 use std::fs::{copy, read_link};
 use std::io::{Error, ErrorKind};
@@ -24,6 +23,10 @@ pub struct CopyBuilder {
     exclude_filters: Vec<String>,
     /// A list of exclude filters
     include_filters: Vec<String>,
+    /// A list of paths to exclude
+    exclude_paths: Vec<String>,
+    /// A list of paths to include
+    include_paths: Vec<String>,
 }
 
 /// Determine if the modification date of file_a is newer than that of file_b
@@ -56,6 +59,8 @@ impl CopyBuilder {
             overwrite_if_size_differs: false,
             exclude_filters: vec![],
             include_filters: vec![],
+            exclude_paths: vec![],
+            include_paths: vec![],
         }
     }
 
@@ -103,6 +108,26 @@ impl CopyBuilder {
         }
     }
 
+    /// Do not copy these paths
+    pub fn with_exclude_path(self, f: &str) -> CopyBuilder {
+        let mut paths = self.exclude_paths.clone();
+        paths.push(f.to_owned());
+        CopyBuilder {
+            exclude_paths: paths,
+            ..self
+        }
+    }
+
+    /// Only not copy these paths
+    pub fn with_include_path(self, f: &str) -> CopyBuilder {
+        let mut paths = self.include_paths.clone();
+        paths.push(f.to_owned());
+        CopyBuilder {
+            include_paths: paths,
+            ..self
+        }
+    }
+
     /// Execute the copy operation
     pub fn run(&self) -> Result<(), std::io::Error> {
         if !self.destination.is_dir() {
@@ -111,6 +136,18 @@ impl CopyBuilder {
         }
         let abs_source = self.source.canonicalize()?;
         let abs_dest = self.destination.canonicalize()?;
+        let exclude_paths: Vec<PathBuf> = self
+            .exclude_paths
+            .clone()
+            .into_iter()
+            .map(|s| PathBuf::from(s))
+            .collect();
+        let include_paths: Vec<PathBuf> = self
+            .include_paths
+            .clone()
+            .into_iter()
+            .map(|s| PathBuf::from(s))
+            .collect();
         debug!(
             "Building copy operation: SRC {} DST {}",
             abs_source.display(),
@@ -119,7 +156,27 @@ impl CopyBuilder {
 
         'files: for entry in WalkDir::new(&abs_source)
             .into_iter()
-            .filter_entry(|e| e.path() != abs_dest)
+            .filter_entry(|e| {
+                let mut included = false;
+                if include_paths.len() == 0 || e.path() == abs_source {
+                    included = true;
+                } else {
+                    'include: for path in include_paths.iter() {
+                        if e.path().starts_with(path) || path.starts_with(e.path()) {
+                            included = true;
+                            break 'include;
+                        }
+                    }
+                }
+                let mut excluded = false;
+                'exclude: for path in exclude_paths.iter() {
+                    if e.path().starts_with(path) {
+                        excluded = true;
+                        break 'exclude;
+                    }
+                }
+                e.path() != abs_dest && !excluded && included
+            })
             .filter_map(|e| e.ok())
         {
             let rel_dest = entry.path().strip_prefix(&abs_source).map_err(|e| {

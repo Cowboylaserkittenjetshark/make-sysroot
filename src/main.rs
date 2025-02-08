@@ -4,7 +4,6 @@ use ansi_term::{
 };
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use core::panic;
 use inquire::Confirm;
 use make_sysroot::CopyBuilder;
 use serde::Deserialize;
