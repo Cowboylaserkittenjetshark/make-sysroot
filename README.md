@@ -8,8 +8,10 @@ The config file specifies what files get copied to and created in the destinatio
 
 By default, the config file is assumed to be `make-sysroot.toml` in the current working directory. To override this, pass the path to your config file with the `--config` flag.
 **Fields:**
-- `include`: paths to include in the sysroot
-- `exclude`: paths to exclude from the sysroot
+- `include_paths`: paths to include in the sysroot
+- `exclude_paths`: paths to exclude from the sysroot
+- `include_filters`: include files containing the string
+- `exclude_filters`: exclude files containing the string
 - `link`: symlinks to create within the sysroot
   - `link`: the path to the link
   - `target`: the path the link points to
