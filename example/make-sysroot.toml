@@ -1,11 +1,12 @@
-include = [
+include_paths = [
   "/usr/",
   "/lib/",
   "/opt/",
   "/etc/alternatives/",
 ]
 
-exclude = [
+exclude_paths = [
+  "/snap/",
   "/usr/bin/",
   "/usr/sbin/",
   "/usr/src/",
@@ -28,6 +29,8 @@ exclude = [
   "/lib/systemd/",
 ]
 
-[[link]]
-link = "/this/is/the/path/to/the/symlink"
-target = "/this/is/the/path/to/its/target"
+include_filters = []
+
+exclude_filters = []
+
+link = []
