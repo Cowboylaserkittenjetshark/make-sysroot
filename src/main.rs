@@ -4,8 +4,8 @@ use ansi_term::{
 };
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use dircpy::CopyBuilder;
 use inquire::Confirm;
+use make_sysroot::CopyBuilder;
 use serde::Deserialize;
 use std::{
     fmt::{Debug, Display},

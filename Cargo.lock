@@ -357,6 +357,7 @@ dependencies = [
  "clap",
  "dircpy",
  "inquire",
+ "log",
  "pathdiff",
  "serde",
  "toml",

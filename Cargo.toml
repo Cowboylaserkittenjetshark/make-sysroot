@@ -9,6 +9,7 @@ anyhow = "1.0.95"
 clap = { version = "4.5.28", features = ["derive"] }
 dircpy = "0.3.19"
 inquire = "0.7.5"
+log = "0.4.25"
 pathdiff = "0.2.3"
 serde = { version = "1.0.217", features = ["derive"] }
 toml = "0.8.20"
